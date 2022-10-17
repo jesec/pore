@@ -913,10 +913,15 @@ impl Tree {
     Ok(())
   }
 
-  pub fn update_hooks(&self) -> Result<(), Error> {
+  pub fn update_hooks(&self, enabled_hooks: &HashSet<String>) -> Result<(), Error> {
     // Just always do this, since it's cheap.
     let hooks_dir = PathBuf::new().join(".pore").join("hooks");
+
     for (filename, contents) in hooks::hooks() {
+      if !enabled_hooks.contains(filename) {
+        continue;
+      }
+
       self.write_hook(hooks_dir.as_path(), filename, contents)?;
     }
 
@@ -1031,7 +1036,7 @@ impl Tree {
     )?;
 
     if sync_under == None {
-      self.update_hooks()?;
+      self.update_hooks(&config.hooks)?;
       self.ensure_repo_compat()?;
     }
 

@@ -3,6 +3,7 @@
 update_check = true
 autosubmit = false
 presubmit = false
+hooks = ['commit-msg']
 
 [depots.android]
 # Path to store the depot.

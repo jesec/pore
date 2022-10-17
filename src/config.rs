@@ -16,6 +16,7 @@
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -38,6 +39,10 @@ fn default_autosubmit() -> bool {
 
 fn default_presubmit() -> bool {
   false
+}
+
+fn default_hooks() -> HashSet<String> {
+  HashSet::from(["commit-msg".into()])
 }
 
 fn default_upload_options() -> Vec<String> {
@@ -72,6 +77,9 @@ pub struct Config {
 
   #[serde(default = "default_presubmit")]
   pub presubmit: bool,
+
+  #[serde(default = "default_hooks")]
+  pub hooks: HashSet<String>,
 
   pub depots: BTreeMap<String, DepotConfig>,
   pub remotes: Vec<RemoteConfig>,
