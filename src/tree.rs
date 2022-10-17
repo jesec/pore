@@ -672,12 +672,14 @@ impl Tree {
     if checkout == CheckoutType::Checkout || checkout == CheckoutType::RefsOnly {
       let mut job = Job::with_name("checkout");
       let tree_root = Arc::new(self.path.clone());
+      let lfs_projects = Arc::new(dashmap::DashMap::<String, PathBuf>::with_capacity(10));
 
       for project in &projects {
         let config = Arc::clone(&config);
         let project_info = Arc::clone(&project);
         let project_path = self.path.join(&project.project_path);
         let tree_root = Arc::clone(&tree_root);
+        let lfs_projects = Arc::clone(&lfs_projects);
 
         job.add_task(project.project_path.clone(), move |_| {
           let remote = config
@@ -794,6 +796,10 @@ impl Tree {
               create_symlink(&target, &symlink_path)
                 .context(format!("failed to create symlink at {:?}", &symlink_path))?;
             }
+
+            if Path::exists(&project_path.join(".lfsconfig")) {
+              lfs_projects.insert(project_info.project_path.clone(), project_path);
+            }
           }
 
           Ok(())
@@ -884,6 +890,39 @@ impl Tree {
           }
         }
         self.write_config().context("failed to write tree config")?;
+      }
+
+      if !lfs_projects.is_empty() {
+        let mut job = Job::with_name("lfs pull");
+
+        for project in lfs_projects.iter() {
+          let project_path = project.value().clone();
+
+          job.add_task(project.key(), move |_| -> Result<(), Error> {
+            macro_rules! run_git {
+              ($args:expr, $msg:expr) => {
+                std::process::Command::new("git")
+                  .args($args)
+                  .current_dir(&project_path)
+                  .stdout(std::process::Stdio::null())
+                  .stderr(std::process::Stdio::null())
+                  .status()
+                  .expect($msg);
+              };
+            }
+
+            run_git!(["lfs", "install", "--local"], "Failed to install Git LFS");
+            run_git!(["lfs", "pull"], "Failed to pull Git LFS assets");
+
+            Ok(())
+          });
+        }
+
+        let results = pool.execute(job);
+        for failure in &results.failed {
+          println!("{}", PROJECT_STYLE.apply_to(&failure.name));
+          println!("{}", console::style(format!("  {}", failure.result)).red());
+        }
       }
     }
 
